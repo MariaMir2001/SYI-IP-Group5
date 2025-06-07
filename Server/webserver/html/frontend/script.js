@@ -36,9 +36,13 @@ function createMap(position)
   var lon = position.coords.longitude;
 
   //map = L.map('map').setView([lat, lon], 2);
-  map = L.map('map', {
-  zoomControl: false
-  }).setView([lat, lon], 2);
+map = L.map('map', {
+  zoomControl: false,
+  worldCopyJump: false, 
+  maxBounds: [[-85, -180], [85, 180]], 
+  maxBoundsViscosity: 1.0 
+}).setView([lat, lon], 2);
+
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', 
     {
