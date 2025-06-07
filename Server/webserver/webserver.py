@@ -10,6 +10,11 @@ from zeep.helpers import serialize_object
 import requests
 from jsonschema import validate, ValidationError
 
+import aiohttp_cors
+
+
+
+
 class SoapClient:
     def __init__(self, wsdl_url:str):
         self.wsdl_url = wsdl_url
@@ -123,7 +128,7 @@ class Main:
         self.create_soap_client()
         self.create_backend()
         self.create_server_instance()
-        self.create_ssl_context()
+        #self.create_ssl_context()
     
     def read_config(self):
         self.config = ConfigParser()
@@ -145,27 +150,61 @@ class Main:
         self.backend = ServerBackend(self.soap_client, self.config.get("rest-api", "rest_api_schema"))
         logging.info("Server backend created")
 
+    # def create_server_instance(self):
+    #     self.web_app = web.Application()
+    #     self.web_app.router.add_get("/", self.backend.handle_index)
+    #     self.web_app.router.add_get("/index.html", self.backend.handle_index)
+    #     self.web_app.router.add_get("/resources/PHS_favicon.png", self.backend.handle_favicon)
+    #     self.web_app.router.add_get("/resources/PHS_icon-small.png", self.backend.handle_PHSicon)
+    #     self.web_app.router.add_get("/resources/leaflet.icon-material.js", self.backend.handle_leaflet_js)
+    #     self.web_app.router.add_get("/resources/leaflet.icon-material.css", self.backend.handle_leaflet_css)
+    #     self.web_app.router.add_post("/api/get_location_history", self.backend.handle_get_location_history)
+    #     self.web_app.router.add_post("/api/get_closest_entry_by_timestamp", self.backend.handle_get_closest_entry_by_timestamp)
+    #     self.web_app.router.add_route("*", "/{tail:.*}", self.backend.handle_404)  # catch-all for 404
+    #     logging.info("Web application instance created")
+
     def create_server_instance(self):
         self.web_app = web.Application()
+
+        # Routen definieren
         self.web_app.router.add_get("/", self.backend.handle_index)
         self.web_app.router.add_get("/index.html", self.backend.handle_index)
         self.web_app.router.add_get("/resources/PHS_favicon.png", self.backend.handle_favicon)
         self.web_app.router.add_get("/resources/PHS_icon-small.png", self.backend.handle_PHSicon)
         self.web_app.router.add_get("/resources/leaflet.icon-material.js", self.backend.handle_leaflet_js)
         self.web_app.router.add_get("/resources/leaflet.icon-material.css", self.backend.handle_leaflet_css)
-        self.web_app.router.add_post("/api/get_location_history", self.backend.handle_get_location_history)
-        self.web_app.router.add_post("/api/get_closest_entry_by_timestamp", self.backend.handle_get_closest_entry_by_timestamp)
-        self.web_app.router.add_route("*", "/{tail:.*}", self.backend.handle_404)  # catch-all for 404
-        logging.info("Web application instance created")
 
-    def create_ssl_context(self):
-        self.ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-        self.ssl_context.load_cert_chain(certfile=self.config.get("webserver", "server_cert"), keyfile=self.config.get("webserver", "server_key"))
-        logging.info("SSL context created")
+        # Wichtige API-Endpunkte
+        location_history_route = self.web_app.router.add_post("/api/get_location_history", self.backend.handle_get_location_history)
+        closest_entry_route = self.web_app.router.add_post("/api/get_closest_entry_by_timestamp", self.backend.handle_get_closest_entry_by_timestamp)
+
+        # Catch-all für 404 NICHT CORS-behandeln
+        self.web_app.router.add_route("*", "/{tail:.*}", self.backend.handle_404)
+
+        # CORS Setup NUR für gewünschte Routen
+        cors = aiohttp_cors.setup(self.web_app, defaults={
+            "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*"
+            )
+        })
+        cors.add(location_history_route)
+        cors.add(closest_entry_route)
+
+        logging.info("Web application instance with CORS created.")
+
+
+    #def create_ssl_context(self):
+        # self.ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        # self.ssl_context.load_cert_chain(certfile=self.config.get("webserver", "server_cert"), keyfile=self.config.get("webserver", "server_key"))
+        # logging.info("SSL context created")
 
     def server_loop(self):
         logging.info("Starting server loop")
-        web.run_app(self.web_app, port=self.config.getint("webserver", "port"), ssl_context=self.ssl_context)
+        #web.run_app(self.web_app, port=self.config.getint("webserver", "port"), ssl_context=self.ssl_context)
+        web.run_app(self.web_app, port=self.config.getint("webserver", "port"))
+
 
 if __name__ == "__main__":
     main = Main()
